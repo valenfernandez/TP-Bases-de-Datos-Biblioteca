@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS `biblioteca`.`Autor` (
   `nombre_apellido` VARCHAR(45) NOT NULL,
   `nombre_fantasia` VARCHAR(45) NULL,
   `fecha_nacimiento` DATE NULL,
-  `biografia` VARCHAR(100) NULL,
+  `biografia` VARCHAR(1000) NULL,
   PRIMARY KEY (`idAutor`))
 ENGINE = InnoDB;
 
@@ -52,7 +52,7 @@ ENGINE = InnoDB;
 -- -----------------------------------------------------
 CREATE TABLE IF NOT EXISTS `biblioteca`.`Edicion` (
   `ISBN` VARCHAR(13) NOT NULL,
-  `indice` VARCHAR(45) NOT NULL,
+  `indice` VARCHAR(45) NULL,
   `fecha_publicacion` DATE NOT NULL,
   `cant_ejemplares` INT NOT NULL,
   `estanteria` VARCHAR(45) NULL,
@@ -161,8 +161,8 @@ ENGINE = InnoDB;
 CREATE TABLE IF NOT EXISTS `biblioteca`.`Lector` (
   `num_lector` INT NOT NULL,
   `nombre_apellido` VARCHAR(45) NOT NULL,
-  `CUIL` INT NULL,
-  `telefono` INT NULL,
+  `CUIL` BIGINT NULL,
+  `telefono` BIGINT NULL,
   PRIMARY KEY (`num_lector`))
 ENGINE = InnoDB;
 
@@ -396,17 +396,17 @@ USE `biblioteca` ;
 -- -----------------------------------------------------
 
 DELIMITER $$
-USE `biblioteca`$$
-CREATE PROCEDURE `prestamo_vencido` (fecha date)
-BEGIN
-declare limite int;
-select pre.id_prestamo, lec.*
-from prestamo pre natural join realizado_por rea natural join lector lec, docente doc
-where datediff(pre.fecha_prestamo,pre.fecha_devolucion)>limite and datediff(pre.fecha_prestamo,fecha)>=0;
-if rea.num_lector in(select doc.num_lector from docente doc) then set limite=14;
-	else set limite=7;
-end if;
-END$$
+-- USE `biblioteca`$$
+-- CREATE PROCEDURE `prestamo_vencido` (fecha date)
+-- BEGIN
+-- declare limite int;
+-- select pre.id_prestamo, lec.*
+-- from prestamo pre natural join realizado_por rea natural join lector lec, docente doc
+-- where datediff(pre.fecha_prestamo,pre.fecha_devolucion)>limite and datediff(pre.fecha_prestamo,fecha)>=0;
+-- if rea.num_lector in(select doc.num_lector from docente doc) then set limite=14;
+-- 	else set limite=7;
+-- end if;
+-- END$$
 
 DELIMITER ;
 
