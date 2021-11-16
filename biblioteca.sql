@@ -1404,4 +1404,3 @@ INSERT INTO `biblioteca`.`Es_recomendado` (`id_libro`, `cod_materia`, `num_lecto
 INSERT INTO `biblioteca`.`Es_recomendado` (`id_libro`, `cod_materia`, `num_lector`) VALUES (030, '1A4', 009);
 
 COMMIT;
-
