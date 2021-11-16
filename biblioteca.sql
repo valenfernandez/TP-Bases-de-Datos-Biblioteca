@@ -19,12 +19,12 @@ USE `biblioteca` ;
 -- Table `biblioteca`.`Autor`
 -- -----------------------------------------------------
 CREATE TABLE IF NOT EXISTS `biblioteca`.`Autor` (
-  `idAutor` INT NOT NULL,
+  `id_autor` INT NOT NULL,
   `nombre_apellido` VARCHAR(45) NOT NULL,
   `nombre_fantasia` VARCHAR(45) NULL,
   `fecha_nacimiento` DATE NULL,
   `biografia` TINYTEXT NULL,
-  PRIMARY KEY (`idAutor`))
+  PRIMARY KEY (`id_autor`))
 ENGINE = InnoDB;
 
 
@@ -78,7 +78,7 @@ CREATE TABLE IF NOT EXISTS `biblioteca`.`Escribe` (
   INDEX `id_libro_idx` (`id_libro` ASC) VISIBLE,
   CONSTRAINT `id_autor_esc`
     FOREIGN KEY (`id_autor`)
-    REFERENCES `biblioteca`.`Autor` (`idAutor`)
+    REFERENCES `biblioteca`.`Autor` (`id_autor`)
     ON DELETE NO ACTION
     ON UPDATE NO ACTION,
   CONSTRAINT `id_libro_esc`
@@ -413,6 +413,264 @@ END$$
 
 DELIMITER ;
 
+-- -----------------------------------------------------
+-- function CHECK_NUM_EJEMPLARES
+-- -----------------------------------------------------
+
+DELIMITER $$
+USE `biblioteca`$$
+CREATE FUNCTION CHECK_NUM_EJEMPLARES (isbn VARCHAR(13))
+RETURNS INT
+
+BEGIN
+   declare num int;
+   SELECT cant_ejemplares INTO num FROM Edicion WHERE Edicion.ISBN = isbn;
+   return num;
+END;$$
+
+DELIMITER ;
+
+-- -----------------------------------------------------
+-- function HAY_DISPONIBLE
+-- -----------------------------------------------------
+
+DELIMITER $$
+USE `biblioteca`$$
+CREATE FUNCTION HAY_DISPONIBLE (isbn VARCHAR(13))
+RETURNS BOOLEAN
+
+BEGIN
+   declare res boolean;
+   IF EXISTS( SELECT estado FROM Ejemplar WHERE Ejemplar.ISBN = isbn AND Ejemplar.estado = 'Disponible' ) THEN
+	BEGIN
+		SET res = true;
+	END;
+   ELSE
+    BEGIN
+		SET res = false;
+    END;
+   END IF;
+   return res;
+END;$$
+
+DELIMITER ;
+
+-- -----------------------------------------------------
+-- function CHECK_PRESTAMO
+-- -----------------------------------------------------
+
+DELIMITER $$
+USE `biblioteca`$$
+CREATE FUNCTION `CHECK_PRESTAMO` (ID_EJEMPLAR INT, ID_PRESTAMO INT)
+RETURNS BOOLEAN
+BEGIN
+    DECLARE res BOOLEAN;
+	DECLARE ISBN_EJEMPLAR VARCHAR(13);
+    SELECT ISBN INTO ISBN_EJEMPLAR FROM Ejemplar WHERE ID_EJEMPLAR=Ejemplar.id_ejemplar;
+	IF EXISTS( 
+    SELECT id_ejemplar
+    FROM Es_retirado 
+    INNER JOIN Ejemplar ON Es_retirado.id_ejemplar = Ejemplar.id_ejemplar
+    WHERE Es_retirado.id_prestamo = ID_PRESTAMO AND Ejemplar.ISBN = ISBN_EJEMPLAR) THEN
+    BEGIN
+		SET res = false;
+    END;
+    ELSE 
+     BEGIN
+		SET res = true;
+	 END;
+    END IF;
+    return res;
+END$$
+
+DELIMITER ;
+
+-- -----------------------------------------------------
+-- procedure CantLibrosTitulo
+-- -----------------------------------------------------
+
+DELIMITER $$
+USE `biblioteca`$$
+CREATE PROCEDURE `CantLibrosTitulo` ()
+BEGIN
+	SELECT Libro.titulo "Titulo del libro",month(fecha_prestamo) "Mes", YEAR (fecha_prestamo) "Anio", count(*) "Cantidad de libros prestados"
+    FROM Prestamo
+    inner join Es_retirado on (prestamo.id_prestamo = Es_retirado.id_prestamo)
+    inner join Ejemplar on (Ejemplar.id_ejemplar = Es_retirado.id_ejemplar)
+    inner join Edicion on (Edicion.ISBN = Ejemplar.ISBN)
+    inner join Libro on (Libro.id_libro = Edicion.id_libro)
+    group by month(fecha_prestamo),year(fecha_prestamo),Libro.titulo;
+END$$
+
+DELIMITER ;
+
+-- -----------------------------------------------------
+-- procedure CantLibrosAutor
+-- -----------------------------------------------------
+
+DELIMITER $$
+USE `biblioteca`$$
+CREATE PROCEDURE `CantLibrosAutor` ()
+BEGIN
+	SELECT Autor.nombre_apellido "Autor",month(fecha_prestamo) "Mes", YEAR (fecha_prestamo) "Anio", count(*) "Cantidad de libros prestados"
+    FROM Prestamo
+    inner join Es_retirado on (prestamo.id_prestamo = Es_retirado.id_prestamo)
+    inner join Ejemplar on (Ejemplar.id_ejemplar = Es_retirado.id_ejemplar)
+    inner join Edicion on (Edicion.ISBN = Ejemplar.ISBN)
+    inner join Libro on (Libro.id_libro = Edicion.id_libro)
+    inner join Escribe on (Escribe.id_libro = Libro.id_libro)
+    inner join Autor on (Autor.id_autor = Escribe.id_autor)
+    group by month(fecha_prestamo),year(fecha_prestamo),Autor.id_autor;
+END$$
+
+DELIMITER ;
+
+-- -----------------------------------------------------
+-- procedure CantLibrosEditorial
+-- -----------------------------------------------------
+
+DELIMITER $$
+USE `biblioteca`$$
+CREATE PROCEDURE `CantLibrosEditorial` ()
+BEGIN
+	SELECT Publicado_por.nombre_editorial "Editorial",month(fecha_prestamo) "Mes", YEAR (fecha_prestamo) "Anio", count(*) "Cantidad de libros prestados"
+    FROM Prestamo
+    inner join Es_retirado on (prestamo.id_prestamo = Es_retirado.id_prestamo)
+    inner join Ejemplar on (Ejemplar.id_ejemplar = Es_retirado.id_ejemplar)
+    inner join Edicion on (Edicion.ISBN = Ejemplar.ISBN)
+    inner join Libro on (Libro.id_libro = Edicion.id_libro)
+    inner join Publicado_por on (Publicado_por.id_libro = Libro.id_libro)
+    group by month(fecha_prestamo),year(fecha_prestamo),Publicado_por.id_libro;
+END$$
+
+DELIMITER ;
+
+-- -----------------------------------------------------
+-- procedure CantLibrosTema
+-- -----------------------------------------------------
+
+DELIMITER $$
+USE `biblioteca`$$
+CREATE PROCEDURE `CantLibrosTema` ()
+BEGIN
+	SELECT  Trata.nombre_tema "Tema",month(fecha_prestamo) "Mes", YEAR (fecha_prestamo) "Anio", count(*) "Cantidad de libros prestados"
+    FROM Prestamo
+    inner join Es_retirado on (prestamo.id_prestamo = Es_retirado.id_prestamo)
+    inner join Ejemplar on (Ejemplar.id_ejemplar = Es_retirado.id_ejemplar)
+    inner join Edicion on (Edicion.ISBN = Ejemplar.ISBN)
+    inner join Trata on (Trata.ISBN = Edicion.ISBN)
+    group by month(fecha_prestamo),year(fecha_prestamo),Trata.nombre_tema;
+END$$
+
+DELIMITER ;
+
+-- -----------------------------------------------------
+-- function vencido
+-- -----------------------------------------------------
+
+DELIMITER $$
+USE `biblioteca`$$
+CREATE FUNCTION `vencido` (idPrestamo int)
+RETURNS tinytext
+BEGIN
+	declare estado_venc tinytext;
+	declare fecha_venc date;
+SELECT DEVOLUCION(idPrestamo) INTO fecha_venc;
+	if(idPrestamo is null) then set estado_venc=null;
+    else
+    begin
+    if(datediff(curdate(), fecha_venc)>0) then
+    set estado_venc='Prestamo no vencido';
+    else set estado_venc='Prestamo vencido';
+    end if;
+    end;
+    end if;
+    return estado_venc;
+END$$
+
+DELIMITER ;
+
+-- -----------------------------------------------------
+-- function devolucion
+-- -----------------------------------------------------
+
+DELIMITER $$
+USE `biblioteca`$$
+CREATE function `devolucion` (idPrestamo int)
+RETURNS date
+BEGIN
+	declare fecha_dev date ;
+    select fecha_prestamo 
+    into fecha_dev
+    from Prestamo
+    where Prestamo.id_prestamo = idPrestamo;
+    if exists(SELECT 
+    rea.*
+FROM
+    prestamo pre
+    inner join realizado_por rea on pre.id_prestamo = rea.id_prestamo
+WHERE rea.num_lector not in (select doc.num_lector from docente doc) and pre.id_prestamo = idPrestamo) then
+set fecha_dev = adddate(fecha_dev,7);
+else set fecha_dev = adddate(fecha_dev,14);
+end if;
+return fecha_dev;
+END$$
+
+DELIMITER ;
+
+-- -----------------------------------------------------
+-- procedure estado_ejemplar
+-- -----------------------------------------------------
+
+DELIMITER $$
+USE `biblioteca`$$
+CREATE PROCEDURE `estado_ejemplar`(isbn varchar(13))
+BEGIN
+	declare idPrestamo int;
+    declare fecha_prestamo date default null;
+	SELECT ej.id_ejemplar, ed.estanteria, ej.estado, devolucion(ret.id_prestamo) as 'fecha de devolucion', vencido(ret.id_prestamo) as 'estado de prestamo'
+    FROM Ejemplar ej
+        left join Es_retirado ret on ret.id_ejemplar = ej.id_ejemplar
+        inner join Edicion ed on ej.ISBN = ed.ISBN
+    WHERE ej.ISBN = isbn;
+END$$
+
+DELIMITER ;
+USE `biblioteca`;
+
+DELIMITER $$
+USE `biblioteca`$$
+CREATE DEFINER = CURRENT_USER TRIGGER `biblioteca`.`Ejemplar_BEFORE_UPDATE` BEFORE UPDATE ON `Ejemplar` FOR EACH ROW
+BEGIN
+-- Si solo hay un ejemplar de una determinada edicion el mismo no puede ser prestado
+-- LLAMAR A CHECK_NUM_EJEMPLARES SI NUM > 1 SE LLAMA A HAY_DISPONIBLE SI DA TRUE SE HACE EL UPDATE
+-- SI DA FALSE O NUM<1 ERROR
+	DECLARE NUM INT;
+    DECLARE RES BOOLEAN;
+	SELECT CHECK_NUM_EJEMPLARES(OLD.ISBN) INTO NUM;
+    SELECT HAY_DISPONIBLE(OLD.ISBN) INTO RES;
+    IF(NUM<=1 AND RES=false) THEN
+		BEGIN 
+			SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Error no hay suficientes ejemplares de esa edicion';
+		END;
+    END IF;
+END$$
+
+USE `biblioteca`$$
+CREATE DEFINER = CURRENT_USER TRIGGER `biblioteca`.`Es_retirado_BEFORE_INSERT` BEFORE INSERT ON `Es_retirado` FOR EACH ROW
+BEGIN
+	DECLARE res BOOLEAN;
+	SELECT CHECK_PRESTAMO(NEW.id_ejemplar, NEW.id_prestamo) INTO res;
+    IF res=false THEN
+		BEGIN 
+			SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Error no es posible prestar mas de un ejemplar de la misma edicion';
+		END;
+    END IF;
+END$$
+
+
+DELIMITER ;
+
 SET SQL_MODE=@OLD_SQL_MODE;
 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS;
 SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS;
@@ -422,28 +680,29 @@ SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS;
 -- -----------------------------------------------------
 START TRANSACTION;
 USE `biblioteca`;
-INSERT INTO `biblioteca`.`Autor` (`idAutor`, `nombre_apellido`, `nombre_fantasia`, `fecha_nacimiento`, `biografia`) VALUES (001, 'Charles Dickens', 'Dickens', '1970-06-09', '\'Charles John Huffam Dickens fue un escritor británico.\'');
-INSERT INTO `biblioteca`.`Autor` (`idAutor`, `nombre_apellido`, `nombre_fantasia`, `fecha_nacimiento`, `biografia`) VALUES (002, 'Homero', 'Homero', NULL, '\'Homero es el nombre dado a quien se atribuye la autoría de la Ilíada y la Odisea.\'');
-INSERT INTO `biblioteca`.`Autor` (`idAutor`, `nombre_apellido`, `nombre_fantasia`, `fecha_nacimiento`, `biografia`) VALUES (003, 'Herman Melville', 'H.Melville', '1819-08-01', '\'Herman Melville ​ fue un escritor, novelista, poeta y ensayista estadounidense\'');
-INSERT INTO `biblioteca`.`Autor` (`idAutor`, `nombre_apellido`, `nombre_fantasia`, `fecha_nacimiento`, `biografia`) VALUES (004, 'Emily Bronte', 'Ellis Bell', '1818-07-30', '\'Emily Jane Brontë fue una escritora británica.\'');
-INSERT INTO `biblioteca`.`Autor` (`idAutor`, `nombre_apellido`, `nombre_fantasia`, `fecha_nacimiento`, `biografia`) VALUES (005, 'Jane Austen', NULL, '1775-12-16', '\'Jane Austen fue una novelista británica que vivió durante la época georgiana.\'');
-INSERT INTO `biblioteca`.`Autor` (`idAutor`, `nombre_apellido`, `nombre_fantasia`, `fecha_nacimiento`, `biografia`) VALUES (006, 'Madeline Miller', NULL, '1978-07-24', '\'Madeline Miller, es una novelista y profesora estadounidense.\'');
-INSERT INTO `biblioteca`.`Autor` (`idAutor`, `nombre_apellido`, `nombre_fantasia`, `fecha_nacimiento`, `biografia`) VALUES (007, 'Julio Cortazar', NULL, '1914-08-26', '\'Julio Florencio Cortázar fue un escritor y traductor argentino.​\'');
-INSERT INTO `biblioteca`.`Autor` (`idAutor`, `nombre_apellido`, `nombre_fantasia`, `fecha_nacimiento`, `biografia`) VALUES (008, 'Jorge Luis Borges', NULL, '1899-08-24', '\'Jorge Luis Borges, fue un destacado escritor de cuentos, poemas y ensayos argentino.​\'');
-INSERT INTO `biblioteca`.`Autor` (`idAutor`, `nombre_apellido`, `nombre_fantasia`, `fecha_nacimiento`, `biografia`) VALUES (009, 'Robert Resnick', NULL, '1923-01-11', '\'Robert Resnick fue un educador de física y autor de libros de texto de física.\'');
-INSERT INTO `biblioteca`.`Autor` (`idAutor`, `nombre_apellido`, `nombre_fantasia`, `fecha_nacimiento`, `biografia`) VALUES (010, 'Kenneth S. Krane', NULL, NULL, NULL);
-INSERT INTO `biblioteca`.`Autor` (`idAutor`, `nombre_apellido`, `nombre_fantasia`, `fecha_nacimiento`, `biografia`) VALUES (011, 'Michael Halliday', NULL, '1925-04-13', '\'Michael Halliday​ fue un lingüista, filósofo, pedagogo y profesor universitario.\'');
-INSERT INTO `biblioteca`.`Autor` (`idAutor`, `nombre_apellido`, `nombre_fantasia`, `fecha_nacimiento`, `biografia`) VALUES (012, 'Ramez Elmasri', NULL, '1950-10-20', '\'Ramez A. Elmasri es un científico informático y un destacado investigador.\'');
-INSERT INTO `biblioteca`.`Autor` (`idAutor`, `nombre_apellido`, `nombre_fantasia`, `fecha_nacimiento`, `biografia`) VALUES (013, 'Shamkant B. Navathe', NULL, NULL, '\'Shamkant B. Navathe es un destacado investigador en el campo de las bases de datos.\'');
-INSERT INTO `biblioteca`.`Autor` (`idAutor`, `nombre_apellido`, `nombre_fantasia`, `fecha_nacimiento`, `biografia`) VALUES (014, 'Abraham Silberschatz', NULL, '1947-05-01', '\'Abraham Silberschatz es un doctorado en Informática graduado en 1976.\'');
-INSERT INTO `biblioteca`.`Autor` (`idAutor`, `nombre_apellido`, `nombre_fantasia`, `fecha_nacimiento`, `biografia`) VALUES (015, 'Henry F. Korth', NULL, NULL, NULL);
-INSERT INTO `biblioteca`.`Autor` (`idAutor`, `nombre_apellido`, `nombre_fantasia`, `fecha_nacimiento`, `biografia`) VALUES (016, 'S. Sudarshan', '', NULL, NULL);
-INSERT INTO `biblioteca`.`Autor` (`idAutor`, `nombre_apellido`, `nombre_fantasia`, `fecha_nacimiento`, `biografia`) VALUES (017, 'Isabel Allende', NULL, '1942-08-02', '\'Isabel Allende​ es una escritora chilena con nacionalidad estadounidense.\'');
-INSERT INTO `biblioteca`.`Autor` (`idAutor`, `nombre_apellido`, `nombre_fantasia`, `fecha_nacimiento`, `biografia`) VALUES (018, 'Ernesto Sabato', NULL, '1911-06-24', '\'Ernesto Sabato​​ fue un ensayista, novelista, fisico y pintor argentino.\'');
-INSERT INTO `biblioteca`.`Autor` (`idAutor`, `nombre_apellido`, `nombre_fantasia`, `fecha_nacimiento`, `biografia`) VALUES (019, 'Ana Frank', NULL, '1929-06-12', '\'Ana Frank, ​​​ fue una niña alemana con ascendencia judía conocida gracias al Diario de Ana Frank\'');
-INSERT INTO `biblioteca`.`Autor` (`idAutor`, `nombre_apellido`, `nombre_fantasia`, `fecha_nacimiento`, `biografia`) VALUES (020, 'H. G. Wells', NULL, '1866-09-21', '\'H. G. Wells es considerado uno de los padres creadores de la ciencia ficción.\'');
-INSERT INTO `biblioteca`.`Autor` (`idAutor`, `nombre_apellido`, `nombre_fantasia`, `fecha_nacimiento`, `biografia`) VALUES (021, 'Victor Hugo', NULL, '1802-02-26', '\'Victor Hugo fue un escritor, crítico, pintor y académico francés. \'');
-INSERT INTO `biblioteca`.`Autor` (`idAutor`, `nombre_apellido`, `nombre_fantasia`, `fecha_nacimiento`, `biografia`) VALUES (022, 'William Shakespeare', NULL, '1564-04-01', '\'William Shakespeare ​ fue un dramaturgo, poeta y actor inglés.\'');
+INSERT INTO `biblioteca`.`Autor` (`id_autor`, `nombre_apellido`, `nombre_fantasia`, `fecha_nacimiento`, `biografia`) VALUES (001, 'Charles Dickens', 'Dickens', '1970-06-09', '\'Charles John Huffam Dickens fue un escritor británico.\'');
+INSERT INTO `biblioteca`.`Autor` (`id_autor`, `nombre_apellido`, `nombre_fantasia`, `fecha_nacimiento`, `biografia`) VALUES (002, 'Homero', 'Homero', NULL, '\'Homero es el nombre dado a quien se atribuye la autoría de la Ilíada y la Odisea.\'');
+INSERT INTO `biblioteca`.`Autor` (`id_autor`, `nombre_apellido`, `nombre_fantasia`, `fecha_nacimiento`, `biografia`) VALUES (003, 'Herman Melville', 'H.Melville', '1819-08-01', '\'Herman Melville ​ fue un escritor, novelista, poeta y ensayista estadounidense\'');
+INSERT INTO `biblioteca`.`Autor` (`id_autor`, `nombre_apellido`, `nombre_fantasia`, `fecha_nacimiento`, `biografia`) VALUES (004, 'Emily Bronte', 'Ellis Bell', '1818-07-30', '\'Emily Jane Brontë fue una escritora británica.\'');
+INSERT INTO `biblioteca`.`Autor` (`id_autor`, `nombre_apellido`, `nombre_fantasia`, `fecha_nacimiento`, `biografia`) VALUES (005, 'Jane Austen', NULL, '1775-12-16', '\'Jane Austen fue una novelista británica que vivió durante la época georgiana.\'');
+INSERT INTO `biblioteca`.`Autor` (`id_autor`, `nombre_apellido`, `nombre_fantasia`, `fecha_nacimiento`, `biografia`) VALUES (006, 'Madeline Miller', NULL, '1978-07-24', '\'Madeline Miller, es una novelista y profesora estadounidense.\'');
+INSERT INTO `biblioteca`.`Autor` (`id_autor`, `nombre_apellido`, `nombre_fantasia`, `fecha_nacimiento`, `biografia`) VALUES (007, 'Julio Cortazar', NULL, '1914-08-26', '\'Julio Florencio Cortázar fue un escritor y traductor argentino.​\'');
+INSERT INTO `biblioteca`.`Autor` (`id_autor`, `nombre_apellido`, `nombre_fantasia`, `fecha_nacimiento`, `biografia`) VALUES (008, 'Jorge Luis Borges', NULL, '1899-08-24', '\'Jorge Luis Borges, fue un destacado escritor de cuentos, poemas y ensayos argentino.​\'');
+INSERT INTO `biblioteca`.`Autor` (`id_autor`, `nombre_apellido`, `nombre_fantasia`, `fecha_nacimiento`, `biografia`) VALUES (009, 'Robert Resnick', NULL, '1923-01-11', '\'Robert Resnick fue un educador de física y autor de libros de texto de física.\'');
+INSERT INTO `biblioteca`.`Autor` (`id_autor`, `nombre_apellido`, `nombre_fantasia`, `fecha_nacimiento`, `biografia`) VALUES (010, 'Kenneth S. Krane', NULL, NULL, NULL);
+INSERT INTO `biblioteca`.`Autor` (`id_autor`, `nombre_apellido`, `nombre_fantasia`, `fecha_nacimiento`, `biografia`) VALUES (011, 'Michael Halliday', NULL, '1925-04-13', '\'Michael Halliday​ fue un lingüista, filósofo, pedagogo y profesor universitario.\'');
+INSERT INTO `biblioteca`.`Autor` (`id_autor`, `nombre_apellido`, `nombre_fantasia`, `fecha_nacimiento`, `biografia`) VALUES (012, 'Ramez Elmasri', NULL, '1950-10-20', '\'Ramez A. Elmasri es un científico informático y un destacado investigador.\'');
+INSERT INTO `biblioteca`.`Autor` (`id_autor`, `nombre_apellido`, `nombre_fantasia`, `fecha_nacimiento`, `biografia`) VALUES (013, 'Shamkant B. Navathe', NULL, NULL, '\'Shamkant B. Navathe es un destacado investigador en el campo de las bases de datos.\'');
+INSERT INTO `biblioteca`.`Autor` (`id_autor`, `nombre_apellido`, `nombre_fantasia`, `fecha_nacimiento`, `biografia`) VALUES (014, 'Abraham Silberschatz', NULL, '1947-05-01', '\'Abraham Silberschatz es un doctorado en Informática graduado en 1976.\'');
+INSERT INTO `biblioteca`.`Autor` (`id_autor`, `nombre_apellido`, `nombre_fantasia`, `fecha_nacimiento`, `biografia`) VALUES (015, 'Henry F. Korth', NULL, NULL, NULL);
+INSERT INTO `biblioteca`.`Autor` (`id_autor`, `nombre_apellido`, `nombre_fantasia`, `fecha_nacimiento`, `biografia`) VALUES (016, 'S. Sudarshan', '', NULL, NULL);
+INSERT INTO `biblioteca`.`Autor` (`id_autor`, `nombre_apellido`, `nombre_fantasia`, `fecha_nacimiento`, `biografia`) VALUES (017, 'Isabel Allende', NULL, '1942-08-02', '\'Isabel Allende​ es una escritora chilena con nacionalidad estadounidense.\'');
+INSERT INTO `biblioteca`.`Autor` (`id_autor`, `nombre_apellido`, `nombre_fantasia`, `fecha_nacimiento`, `biografia`) VALUES (018, 'Ernesto Sabato', NULL, '1911-06-24', '\'Ernesto Sabato​​ fue un ensayista, novelista, fisico y pintor argentino.\'');
+INSERT INTO `biblioteca`.`Autor` (`id_autor`, `nombre_apellido`, `nombre_fantasia`, `fecha_nacimiento`, `biografia`) VALUES (019, 'Ana Frank', NULL, '1929-06-12', '\'Ana Frank, ​​​ fue una niña alemana con ascendencia judía conocida gracias al Diario de Ana Frank\'');
+INSERT INTO `biblioteca`.`Autor` (`id_autor`, `nombre_apellido`, `nombre_fantasia`, `fecha_nacimiento`, `biografia`) VALUES (020, 'H. G. Wells', NULL, '1866-09-21', '\'H. G. Wells es considerado uno de los padres creadores de la ciencia ficción.\'');
+INSERT INTO `biblioteca`.`Autor` (`id_autor`, `nombre_apellido`, `nombre_fantasia`, `fecha_nacimiento`, `biografia`) VALUES (021, 'Victor Hugo', NULL, '1802-02-26', '\'Victor Hugo fue un escritor, crítico, pintor y académico francés. \'');
+INSERT INTO `biblioteca`.`Autor` (`id_autor`, `nombre_apellido`, `nombre_fantasia`, `fecha_nacimiento`, `biografia`) VALUES (022, 'William Shakespeare', NULL, '1564-04-01', '\'William Shakespeare ​ fue un dramaturgo, poeta y actor inglés.\'');
+INSERT INTO `biblioteca`.`Autor` (`id_autor`, `nombre_apellido`, `nombre_fantasia`, `fecha_nacimiento`, `biografia`) VALUES (023, 'Sylvia Plath', NULL, '1932-10-27', '\'Sylvia Plath fue una escritora y poeta estadounidense.​\'');
 
 COMMIT;
 
