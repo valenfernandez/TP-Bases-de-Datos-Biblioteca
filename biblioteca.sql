@@ -393,18 +393,28 @@ ENGINE = InnoDB;
 USE `biblioteca` ;
 
 -- -----------------------------------------------------
--- procedure prestamo_vencido
+-- Placeholder table for view `biblioteca`.`lectores_libros`
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS `biblioteca`.`lectores_libros` (`num_lector` INT, `id_libro` INT);
+
+-- -----------------------------------------------------
+-- procedure Prestamos_vencidos
 -- -----------------------------------------------------
 
 DELIMITER $$
 USE `biblioteca`$$
-CREATE PROCEDURE `prestamo_vencido` (fecha date)
+CREATE PROCEDURE `Prestamos_vencidos` (fecha date)
 BEGIN
 SELECT 
-    rea.*
+    lib.titulo as Libro, ej.ISBN, ej.id_ejemplar, pre.*, lec.*
 FROM
     biblioteca.prestamo pre
     inner join biblioteca.realizado_por rea on pre.id_prestamo = rea.id_prestamo
+    inner join Lector lec on rea.num_lector = lec.num_lector
+    inner join Es_retirado ret on ret.id_prestamo = pre.id_prestamo
+    inner join Ejemplar ej on ej.id_ejemplar = ret.id_ejemplar
+    inner join Edicion ed on ed.ISBN = ej.ISBN
+    inner join Libro lib on lib.id_libro = ed.id_libro
 WHERE
 	((rea.num_lector not in (select doc.num_lector from docente doc) and DATEDIFF(pre.fecha_devolucion, pre.fecha_prestamo) > 7 ) 
     OR DATEDIFF(pre.fecha_devolucion, pre.fecha_prestamo) > 14)
@@ -619,23 +629,116 @@ END$$
 DELIMITER ;
 
 -- -----------------------------------------------------
--- procedure estado_ejemplar
+-- procedure Ejemplares_autor
 -- -----------------------------------------------------
 
 DELIMITER $$
 USE `biblioteca`$$
-CREATE PROCEDURE `estado_ejemplar`(isbn varchar(13))
+CREATE PROCEDURE `Ejemplares_autor`(nombre_autor varchar(45))
 BEGIN
 	declare idPrestamo int;
     declare fecha_prestamo date default null;
-	SELECT ej.id_ejemplar, ed.estanteria, ej.estado, devolucion(ret.id_prestamo) as 'fecha de devolucion', vencido(ret.id_prestamo) as 'estado de prestamo'
+	SELECT lib.titulo, ed.estanteria, ej.estado, devolucion(ret.id_prestamo) as 'fecha de devolucion', vencido(ret.id_prestamo) as 'estado de prestamo'
     FROM Ejemplar ej
         left join Es_retirado ret on ret.id_ejemplar = ej.id_ejemplar
         inner join Edicion ed on ej.ISBN = ed.ISBN
-    WHERE ej.ISBN = isbn;
+        inner join Escribe es on es.id_libro = ed.id_libro
+        inner join Autor au on au.id_autor = es.id_autor
+        inner join Libro lib on lib.id_libro = ed.id_libro
+    WHERE au.nombre_apellido = nombre_autor;
 END$$
 
 DELIMITER ;
+
+-- -----------------------------------------------------
+-- procedure lectores_avisados
+-- -----------------------------------------------------
+
+DELIMITER $$
+USE `biblioteca`$$
+CREATE PROCEDURE `lectores_avisados` (IDLIBRO INT)
+BEGIN
+	declare autor_act int;
+    
+    -- autor del libro dado
+    select Autor.id_autor into autor_act from Autor  
+    inner join Escribe on (Autor.id_autor = Escribe.id_autor)
+    where Escribe.id_libro = IDLIBRO;
+    
+    -- busco que no exista un libro que no haya retirado 
+    SELECT Lector.num_lector
+    FROM Lector
+    WHERE NOT EXISTS (
+		SELECT Libro.id_libro
+		FROM  Libro
+		inner join Escribe on (Libro.id_libro = Escribe.id_libro)
+		where Escribe.id_autor = autor_act AND
+        NOT EXISTS (SELECT * from lectores_libros where lectores_libros.num_lector = Lector.num_lector)
+	);
+
+END$$
+
+DELIMITER ;
+
+-- -----------------------------------------------------
+-- procedure Ejemplares_tema
+-- -----------------------------------------------------
+
+DELIMITER $$
+USE `biblioteca`$$
+CREATE PROCEDURE `Ejemplares_tema`(tema varchar(45))
+BEGIN
+	declare idPrestamo int;
+    declare fecha_prestamo date default null;
+	SELECT lib.titulo, ed.estanteria, ej.estado, devolucion(ret.id_prestamo) as 'fecha de devolucion', vencido(ret.id_prestamo) as 'estado de prestamo'
+    FROM Ejemplar ej
+        left join Es_retirado ret on ret.id_ejemplar = ej.id_ejemplar
+        inner join Edicion ed on ej.ISBN = ed.ISBN
+        inner join Escribe es on es.id_libro = ed.id_libro
+        inner join Libro lib on lib.id_libro = ed.id_libro
+        inner join Trata tr on tr.ISBN = ej.ISBN
+    WHERE tr.nombre_tema = tema;
+END$$
+
+DELIMITER ;
+
+-- -----------------------------------------------------
+-- procedure Ejemplares_recomendacion_profesor
+-- -----------------------------------------------------
+
+DELIMITER $$
+USE `biblioteca`$$
+CREATE PROCEDURE `Ejemplares_recomendacion_profesor`(nombre_profesor varchar(45))
+BEGIN
+	declare idPrestamo int;
+    declare fecha_prestamo date default null;
+	SELECT lib.titulo, ed.estanteria, ej.estado, devolucion(ret.id_prestamo) as 'fecha de devolucion', vencido(ret.id_prestamo) as 'estado de prestamo'
+    FROM Ejemplar ej
+        left join Es_retirado ret on ret.id_ejemplar = ej.id_ejemplar
+        inner join Edicion ed on ej.ISBN = ed.ISBN
+        inner join Escribe es on es.id_libro = ed.id_libro
+        inner join Libro lib on lib.id_libro = ed.id_libro
+        inner join Es_recomendado rec on rec.id_libro = ed.id_libro
+        inner join Lector prof on prof.num_lector = rec.num_lector
+    WHERE prof.nombre_apellido = nombre_profesor;
+END$$
+
+DELIMITER ;
+
+-- -----------------------------------------------------
+-- View `biblioteca`.`lectores_libros`
+-- -----------------------------------------------------
+DROP TABLE IF EXISTS `biblioteca`.`lectores_libros`;
+USE `biblioteca`;
+CREATE  OR REPLACE VIEW `lectores_libros` AS
+	SELECT Lector.num_lector, Libro.id_libro
+    FROM Lector
+    inner join Realizado_por on (Lector.num_lector = Realizado_por.num_lector)
+    inner join Prestamo on (Realizado_por.id_prestamo =Prestamo.id_prestamo)
+    inner join Es_retirado on (prestamo.id_prestamo = Es_retirado.id_prestamo)
+	inner join Ejemplar on (Ejemplar.id_ejemplar = Es_retirado.id_ejemplar)
+    inner join Edicion on (Edicion.ISBN = Ejemplar.ISBN)
+	inner join Libro on (Libro.id_libro = Edicion.id_libro);
 USE `biblioteca`;
 
 DELIMITER $$
@@ -1404,3 +1507,4 @@ INSERT INTO `biblioteca`.`Es_recomendado` (`id_libro`, `cod_materia`, `num_lecto
 INSERT INTO `biblioteca`.`Es_recomendado` (`id_libro`, `cod_materia`, `num_lector`) VALUES (030, '1A4', 009);
 
 COMMIT;
+
