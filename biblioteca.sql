@@ -530,7 +530,7 @@ BEGIN
     inner join Libro on (Libro.id_libro = Edicion.id_libro)
     inner join Escribe on (Escribe.id_libro = Libro.id_libro)
     inner join Autor on (Autor.id_autor = Escribe.id_autor)
-    group by month(fecha_prestamo),year(fecha_prestamo),Autor.id_autor;
+    group by month(fecha_prestamo),year(fecha_prestamo),Autor.nombre_apellido;
 END$$
 
 DELIMITER ;
@@ -550,7 +550,7 @@ BEGIN
     inner join Edicion on (Edicion.ISBN = Ejemplar.ISBN)
     inner join Libro on (Libro.id_libro = Edicion.id_libro)
     inner join Publicado_por on (Publicado_por.id_libro = Libro.id_libro)
-    group by month(fecha_prestamo),year(fecha_prestamo),Publicado_por.id_libro;
+    group by month(fecha_prestamo),year(fecha_prestamo),Publicado_por.nombre_editorial;
 END$$
 
 DELIMITER ;
@@ -752,7 +752,7 @@ BEGIN
     DECLARE RES BOOLEAN;
 	SELECT CHECK_NUM_EJEMPLARES(OLD.ISBN) INTO NUM;
     SELECT HAY_DISPONIBLE(OLD.ISBN) INTO RES;
-    IF(NUM<=1 AND RES=false) THEN
+    IF(NUM<=1 OR RES=false) THEN
 		BEGIN 
 			SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Error no hay suficientes ejemplares de esa edicion';
 		END;
@@ -1143,6 +1143,9 @@ INSERT INTO `biblioteca`.`Prestamo` (`id_prestamo`, `fecha_prestamo`, `fecha_dev
 INSERT INTO `biblioteca`.`Prestamo` (`id_prestamo`, `fecha_prestamo`, `fecha_devolucion`) VALUES (008, '2020-11-11', '2020-12-11');
 INSERT INTO `biblioteca`.`Prestamo` (`id_prestamo`, `fecha_prestamo`, `fecha_devolucion`) VALUES (009, '2019-10-13', '2019-10-21');
 INSERT INTO `biblioteca`.`Prestamo` (`id_prestamo`, `fecha_prestamo`, `fecha_devolucion`) VALUES (010, '2019-10-13', '2019-10-21');
+INSERT INTO `biblioteca`.`Prestamo` (`id_prestamo`, `fecha_prestamo`, `fecha_devolucion`) VALUES (011, '2020-03-08', '2020-03-15');
+INSERT INTO `biblioteca`.`Prestamo` (`id_prestamo`, `fecha_prestamo`, `fecha_devolucion`) VALUES (012, '2019-04-05', '2019-04-09');
+INSERT INTO `biblioteca`.`Prestamo` (`id_prestamo`, `fecha_prestamo`, `fecha_devolucion`) VALUES (013, '2020-03-22', '2020-04-09');
 
 COMMIT;
 
@@ -1426,6 +1429,9 @@ INSERT INTO `biblioteca`.`Es_retirado` (`id_ejemplar`, `id_prestamo`) VALUES (01
 INSERT INTO `biblioteca`.`Es_retirado` (`id_ejemplar`, `id_prestamo`) VALUES (006, 008);
 INSERT INTO `biblioteca`.`Es_retirado` (`id_ejemplar`, `id_prestamo`) VALUES (049, 009);
 INSERT INTO `biblioteca`.`Es_retirado` (`id_ejemplar`, `id_prestamo`) VALUES (050, 010);
+INSERT INTO `biblioteca`.`Es_retirado` (`id_ejemplar`, `id_prestamo`) VALUES (022, 011);
+INSERT INTO `biblioteca`.`Es_retirado` (`id_ejemplar`, `id_prestamo`) VALUES (022, 012);
+INSERT INTO `biblioteca`.`Es_retirado` (`id_ejemplar`, `id_prestamo`) VALUES (035, 013);
 
 COMMIT;
 
@@ -1445,6 +1451,9 @@ INSERT INTO `biblioteca`.`Realizado_por` (`id_prestamo`, `num_lector`) VALUES (0
 INSERT INTO `biblioteca`.`Realizado_por` (`id_prestamo`, `num_lector`) VALUES (008, 002);
 INSERT INTO `biblioteca`.`Realizado_por` (`id_prestamo`, `num_lector`) VALUES (009, 004);
 INSERT INTO `biblioteca`.`Realizado_por` (`id_prestamo`, `num_lector`) VALUES (010, 011);
+INSERT INTO `biblioteca`.`Realizado_por` (`id_prestamo`, `num_lector`) VALUES (011, 013);
+INSERT INTO `biblioteca`.`Realizado_por` (`id_prestamo`, `num_lector`) VALUES (012, 004);
+INSERT INTO `biblioteca`.`Realizado_por` (`id_prestamo`, `num_lector`) VALUES (013, 002);
 
 COMMIT;
 
