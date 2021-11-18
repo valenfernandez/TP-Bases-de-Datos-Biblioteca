@@ -589,7 +589,7 @@ SELECT DEVOLUCION(idPrestamo) INTO fecha_venc;
 	if(idPrestamo is null) then set estado_venc=null;
     else
     begin
-    if(datediff(curdate(), fecha_venc)>0) then
+    if(datediff(curdate(), fecha_venc)<=0) then
     set estado_venc='Prestamo no vencido';
     else set estado_venc='Prestamo vencido';
     end if;
@@ -1514,6 +1514,9 @@ INSERT INTO `biblioteca`.`Es_recomendado` (`id_libro`, `cod_materia`, `num_lecto
 INSERT INTO `biblioteca`.`Es_recomendado` (`id_libro`, `cod_materia`, `num_lector`) VALUES (031, '1A3', 008);
 INSERT INTO `biblioteca`.`Es_recomendado` (`id_libro`, `cod_materia`, `num_lector`) VALUES (031, '1A4', 009);
 INSERT INTO `biblioteca`.`Es_recomendado` (`id_libro`, `cod_materia`, `num_lector`) VALUES (030, '1A4', 009);
+INSERT INTO `biblioteca`.`Es_recomendado` (`id_libro`, `cod_materia`, `num_lector`) VALUES (002, '1A2', 007);
+INSERT INTO `biblioteca`.`Es_recomendado` (`id_libro`, `cod_materia`, `num_lector`) VALUES (015, '2B1', 010);
+INSERT INTO `biblioteca`.`Es_recomendado` (`id_libro`, `cod_materia`, `num_lector`) VALUES (014, '2B2', 011);
 
 COMMIT;
 
